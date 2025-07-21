@@ -22,6 +22,7 @@ return [
         's' => 'second',
 
         'ago' => 'ago.',
+        'future' => 'from now.',
         'recently' => 'just now.',
     ],
 
@@ -35,6 +36,7 @@ return [
             'email' => ':field is invalid!.',
             'dns' => ':field is invalid!.',
             'url' => ':field is invalid!.',
+            'ip' => ':field is invalid!.',
             'uuid' => ':field is not a uuid!.',
             'int' => ':field must be a number!.',
             'float' => ':field must be decimal!.',

@@ -5,6 +5,7 @@ use App\Controllers\Api\CommentController;
 use App\Controllers\Api\DashboardController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\DashboardMiddleware;
+use App\Middleware\RateLimitMiddleware;
 use Core\Routing\Route;
 
 /**
@@ -12,12 +13,12 @@ use Core\Routing\Route;
  * keep simple yeah.
  */
 
-Route::prefix('/session')->group(function () {
+Route::middleware(RateLimitMiddleware::class)->prefix('/session')->group(function () {
     Route::post('/', [AuthController::class, 'login']);
     Route::options('/'); // Preflight request [/api/session]
 });
 
-Route::middleware(AuthMiddleware::class)->group(function () {
+Route::middleware([RateLimitMiddleware::class, AuthMiddleware::class])->group(function () {
 
     // Dashboard
     Route::middleware(DashboardMiddleware::class)->group(function () {
@@ -35,14 +36,10 @@ Route::middleware(AuthMiddleware::class)->group(function () {
         Route::options('/user');
     });
 
-    Route::get('/config', [DashboardController::class, 'config']);
-    Route::options('/config'); // Preflight request [/api/config]
-
     // Comment
     Route::prefix('/comment')->group(function () {
 
         Route::controller(CommentController::class)->group(function () {
-            Route::get('/', 'get');
             Route::post('/', 'create');
         });
 
@@ -51,7 +48,6 @@ Route::middleware(AuthMiddleware::class)->group(function () {
         Route::prefix('/{id}')->group(function () {
             Route::controller(CommentController::class)->group(function () {
 
-                Route::get('/', 'show');
                 Route::put('/', 'update');
                 Route::delete('/', 'destroy');
 
@@ -64,7 +60,7 @@ Route::middleware(AuthMiddleware::class)->group(function () {
         });
     });
 
-    // api v2 comment
+    // api v2
     Route::prefix('/v2')->group(function () {
 
         Route::get('/config', [DashboardController::class, 'configV2']);

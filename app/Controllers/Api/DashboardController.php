@@ -3,15 +3,17 @@
 namespace App\Controllers\Api;
 
 use App\Repositories\CommentContract;
-use App\Repositories\CommentRepositories;
 use App\Repositories\LikeContract;
+use App\Repositories\UserContract;
 use App\Request\UpdateUserRequest;
 use App\Response\JsonResponse;
 use Core\Auth\Auth;
 use Core\Routing\Controller;
 use Core\Http\Request;
 use Core\Http\Stream;
+use Core\Support\Time;
 use Core\Valid\Hash;
+use DateTimeZone;
 
 class DashboardController extends Controller
 {
@@ -34,16 +36,11 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function rotate(): JsonResponse
+    public function rotate(UserContract $userContract): JsonResponse
     {
-        $status = Auth::user()
-            ->only('id')
-            ->fill([
-                'access_key' => Hash::rand(25)
-            ])
-            ->save();
+        $status = $userContract->generateNewAccessKey(Auth::id());
 
-        if ($status == 1) {
+        if ($status === 1) {
             return $this->json->successStatusTrue();
         }
 
@@ -52,17 +49,12 @@ class DashboardController extends Controller
 
     public function user(): JsonResponse
     {
-        return $this->json->successOK(Auth::user()->except('password'));
-    }
-
-    public function config(): JsonResponse
-    {
-        return $this->json->successOK(Auth::user()->only(['name', 'can_edit', 'can_delete', 'can_reply', 'tenor_key']));
+        return $this->json->successOK(Auth::user()->except(['id', 'password', 'is_admin', 'is_active', 'created_at', 'updated_at']));
     }
 
     public function configV2(): JsonResponse
     {
-        return $this->json->successOK(Auth::user()->only(['can_edit', 'can_delete', 'can_reply', 'tenor_key']));
+        return $this->json->successOK(Auth::user()->only(['tz', 'can_edit', 'can_delete', 'can_reply', 'tenor_key', 'is_confetti_animation']));
     }
 
     public function update(UpdateUserRequest $request): JsonResponse
@@ -73,10 +65,18 @@ class DashboardController extends Controller
             return $this->json->errorBadRequest($valid->messages());
         }
 
-        $user = Auth::user()->only('id');
+        $user = Auth::user()->only(['id', 'password']);
 
         if (!empty($valid->name)) {
             $user->name = $valid->name;
+        }
+
+        if (!empty($valid->tz)) {
+            if (!in_array($valid->tz, DateTimeZone::listIdentifiers())) {
+                return $this->json->errorBadRequest(['Invalid time zone']);
+            }
+
+            $user->tz = $valid->tz;
         }
 
         if (array_key_exists('tenor_key', $request->all())) {
@@ -85,6 +85,10 @@ class DashboardController extends Controller
 
         if ($valid->get('filter') !== null) {
             $user->is_filter = boolval($valid->filter);
+        }
+
+        if ($valid->get('confetti_animation') !== null) {
+            $user->is_confetti_animation = boolval($valid->confetti_animation);
         }
 
         if ($valid->get('can_edit') !== null) {
@@ -100,7 +104,7 @@ class DashboardController extends Controller
         }
 
         if (!empty($valid->get('old_password')) && !empty($valid->get('new_password'))) {
-            if (!Hash::check($valid->get('old_password'), Auth::user()->refresh()->password)) {
+            if (!Hash::check($valid->get('old_password'), $user->password ?? '')) {
                 return $this->json->errorBadRequest(['password not match.']);
             }
 
@@ -115,7 +119,7 @@ class DashboardController extends Controller
         return $this->json->errorServer();
     }
 
-    public function download(Stream $stream, CommentRepositories $comment): Stream
+    public function download(Stream $stream, CommentContract $comment): Stream
     {
         $streamResource = $stream->getStream();
 
@@ -134,13 +138,15 @@ class DashboardController extends Controller
         ]);
 
         foreach ($comment->downloadCommentByUserID(Auth::id()) as $value) {
+            $value->insert_at = Time::factory($value->insert_at)->tz(auth()->user()->getTimezone());
+
             $data = array_map(function (mixed $value): mixed {
                 if (is_bool($value)) {
-                    return $value ? 'TRUE' : 'FALSE';
+                    return $value ? 'True' : 'False';
                 }
 
                 if (is_null($value)) {
-                    return 'NULL';
+                    return 'Null';
                 }
 
                 return $value;

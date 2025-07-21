@@ -13,11 +13,18 @@ final class CorsMiddleware implements MiddlewareInterface
     {
         $header = respond()->getHeader();
         $header->set('Access-Control-Allow-Origin', '*');
-        $header->set('Access-Control-Expose-Headers', 'Authorization, Content-Type, Cache-Control, Content-Disposition');
+        $header->set('Access-Control-Max-Age', '3600');
+        $header->set('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
 
-        $vary = $header->has('Vary') ? explode(', ', $header->get('Vary')) : [];
-        $vary = array_unique([...$vary, 'Accept', 'Origin', 'User-Agent', 'Access-Control-Request-Method', 'Access-Control-Request-Headers']);
-        $header->set('Vary', join(', ', $vary));
+        $varyList = ['Accept', 'Access-Control-Request-Method', 'Access-Control-Request-Headers', 'Origin'];
+
+        if ($header->has('Vary')) {
+            $existing = preg_split('/\s*,\s*/', $header->get('Vary'), -1, PREG_SPLIT_NO_EMPTY);
+            $varyList = array_merge($existing, $varyList);
+        }
+
+        $varyList = array_unique(array_map('trim', $varyList));
+        $header->set('Vary', implode(', ', $varyList));
 
         if (!$request->method(Request::OPTIONS)) {
             return $next($request);
@@ -34,10 +41,7 @@ final class CorsMiddleware implements MiddlewareInterface
             strtoupper($request->server->get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', $request->method()))
         );
 
-        $header->set(
-            'Access-Control-Allow-Headers',
-            $request->server->get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', 'Origin, Content-Type, Accept, Authorization, Accept-Language')
-        );
+        $header->set('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type, x-access-key');
 
         return respond()->setCode(Respond::HTTP_NO_CONTENT);
     }

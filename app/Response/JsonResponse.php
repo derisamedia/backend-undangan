@@ -13,16 +13,11 @@ class JsonResponse extends Respond
             $data = [$this->codeHttpMessage($code)];
         }
 
-        $this->setContent(json([
-            'code' => $code,
+        return $this->setCode($code)->transform([
+            'id' => request()->getRequestId(),
             'data' => $data,
             'error' => null
-        ]));
-
-        $this->headers->set('Content-Type', 'application/json');
-        $this->setCode($code);
-
-        return $this;
+        ]);
     }
 
     public function error(array|object|int $error, int|null $code = null): JsonResponse
@@ -32,16 +27,11 @@ class JsonResponse extends Respond
             $error = [$this->codeHttpMessage($code)];
         }
 
-        $this->setContent(json([
-            'code' => $code,
+        return $this->setCode($code)->transform([
+            'id' => request()->getRequestId(),
             'data' => null,
             'error' => $error
-        ]));
-
-        $this->headers->set('Content-Type', 'application/json');
-        $this->setCode($code);
-
-        return $this;
+        ]);
     }
 
     public function successOK(array|object $data): JsonResponse

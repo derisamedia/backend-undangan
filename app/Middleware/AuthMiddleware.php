@@ -28,16 +28,16 @@ final class AuthMiddleware implements MiddlewareInterface
                     new Key(env('JWT_KEY'), env('JWT_ALGO', 'HS256'))
                 );
 
-                $user = User::find($token->id);
+                $user = User::find(intval($token->sub));
                 if (!$user->exist()) {
                     throw new Exception('user not found');
                 }
 
-                if (!boolval($user->is_active)) {
+                if (!$user->isActive()) {
                     throw new Exception('user not active');
                 }
 
-                $user->is_admin = true;
+                $user->setAsAdmin();
 
                 Auth::login($user);
             } catch (Exception $e) {
@@ -65,9 +65,11 @@ final class AuthMiddleware implements MiddlewareInterface
             return (new JsonResponse)->errorBadRequest(['user not found.']);
         }
 
-        if (!boolval($user->is_active)) {
+        if (!$user->isActive()) {
             return (new JsonResponse)->errorBadRequest(['user not active.']);
         }
+
+        $user->setAsNonAdmin();
 
         Auth::login($user);
         return $next($request);

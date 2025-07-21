@@ -8,7 +8,9 @@ use Core\Auth\Auth;
 use Core\Routing\Controller;
 use Core\Http\Respond;
 use Core\Support\Time;
+use Exception;
 use Firebase\JWT\JWT;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -20,21 +22,29 @@ class AuthController extends Controller
             return $json->errorBadRequest($valid->messages());
         }
 
-        if (!Auth::attempt($valid->only(['email', 'password']))) {
+        try {
+            if (!Auth::attempt($valid->only(['email', 'password']))) {
+                throw new Exception('Invalid credentials');
+            }
+        } catch (Throwable) {
             return $json->error(Respond::HTTP_UNAUTHORIZED);
         }
 
-        if (!boolval(Auth::user()->is_active)) {
+        if (!auth()->user()->isActive()) {
             return $json->errorBadRequest(['user not active.']);
+        }
+
+        if (!env('JWT_KEY')) {
+            return $json->errorBadRequest(['JWT Key not found!.']);
         }
 
         $time = Time::factory()->getTimestamp();
         $token = JWT::encode(
             [
                 'iat' => $time,
-                'exp' => $time + (60 * 60),
+                'exp' => $time + intval(env('JWT_EXP', 3600)),
                 'iss' => base_url(),
-                ...Auth::user()->only(['id', 'name', 'email'])->toArray()
+                'sub' => strval(auth()->id()),
             ],
             env('JWT_KEY'),
             env('JWT_ALGO', 'HS256')
